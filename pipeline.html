@@ -1,0 +1,916 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Как рождается ИИ-креатив</title>
+<style>
+  :root{
+    --bg:#fbfbfd;
+    --surface:#ffffff;
+    --ink:#1d1d1f;
+    --ink-2:#6e6e73;
+    --ink-3:#86868b;
+    --line:#e6e6eb;
+    --blue:#0071e3;
+    --blue-d:#0060c0;
+    --green:#28c65a;
+    --green-d:#1da84a;
+    --red:#ff3b30;
+    --red-d:#e02b21;
+    --g1:#6366f1;
+    --g2:#ec4899;
+    --shadow:0 12px 40px rgba(0,0,0,.08),0 2px 8px rgba(0,0,0,.04);
+    --radius:26px;
+    font-synthesis:none;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    background:var(--bg);
+    color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","SF Pro Text","Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    -webkit-font-smoothing:antialiased;
+    text-rendering:optimizeLegibility;
+    overflow-x:hidden;
+  }
+
+  /* ---- top bar ---- */
+  .bar{
+    position:fixed;top:0;left:0;right:0;height:52px;z-index:50;
+    display:flex;align-items:center;justify-content:space-between;
+    padding:0 22px;
+    background:rgba(251,251,253,.72);
+    backdrop-filter:saturate(180%) blur(20px);
+    -webkit-backdrop-filter:saturate(180%) blur(20px);
+    border-bottom:1px solid rgba(0,0,0,.06);
+  }
+  .bar .brand{font-size:15px;font-weight:600;letter-spacing:-.01em}
+  .bar .brand span{color:var(--ink-3);font-weight:400}
+  .counter{font-size:13px;color:var(--ink-2);font-variant-numeric:tabular-nums;font-weight:500}
+
+  /* ---- progress rail ---- */
+  .rail{
+    position:fixed;top:52px;left:0;right:0;z-index:40;
+    display:flex;gap:6px;justify-content:center;align-items:center;
+    padding:14px 22px;flex-wrap:wrap;
+    background:rgba(251,251,253,.6);
+    backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
+    transition:opacity .4s;
+  }
+  .seg{width:26px;height:5px;border-radius:3px;background:#dcdce2;transition:all .45s cubic-bezier(.4,0,.2,1)}
+  .seg.done{background:var(--ink)}
+  .seg.now{background:var(--blue);width:38px}
+  .seg.gate{background:#c9c9d0;position:relative}
+  .seg.gate.done{background:linear-gradient(90deg,var(--green),var(--green-d))}
+  .rail.hidden{opacity:0;pointer-events:none}
+
+  /* ---- stage container ---- */
+  .stage{
+    min-height:100vh;
+    display:flex;align-items:center;justify-content:center;
+    padding:130px 22px 120px;
+  }
+  .screen{width:100%;max-width:760px}
+
+  /* transition */
+  .anim-in{animation:rise .6s cubic-bezier(.16,1,.3,1) both}
+  @keyframes rise{from{opacity:0;transform:translateY(26px) scale(.985)}to{opacity:1;transform:none}}
+
+  /* ---- intro ---- */
+  .intro{text-align:center}
+  .eyebrow{
+    font-size:16px;font-weight:600;letter-spacing:.01em;margin-bottom:14px;
+    background:linear-gradient(90deg,var(--g1),var(--g2));
+    -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;
+  }
+  .intro h1{
+    font-size:clamp(42px,7vw,84px);line-height:1.03;font-weight:700;
+    letter-spacing:-.03em;margin-bottom:22px;
+  }
+  .intro p.lead{
+    font-size:clamp(19px,2.6vw,26px);color:var(--ink-2);line-height:1.4;
+    max-width:600px;margin:0 auto 40px;font-weight:400;letter-spacing:-.01em;
+  }
+  .hint{margin-top:26px;font-size:13px;color:var(--ink-3)}
+  .kbd{
+    display:inline-block;padding:2px 8px;border:1px solid var(--line);border-radius:7px;
+    background:#fff;font-size:12px;font-weight:600;color:var(--ink-2);margin:0 2px;
+  }
+
+  /* ---- buttons ---- */
+  .btn{
+    appearance:none;border:none;cursor:pointer;font-family:inherit;
+    font-size:18px;font-weight:500;letter-spacing:-.01em;
+    padding:15px 34px;border-radius:980px;
+    background:var(--blue);color:#fff;transition:transform .18s,background .2s;
+    box-shadow:0 4px 14px rgba(0,113,227,.28);
+  }
+  .btn:hover{background:var(--blue-d)}
+  .btn:active{transform:scale(.96)}
+  .btn.ghost{
+    background:transparent;color:var(--blue);box-shadow:none;
+    padding:15px 20px;
+  }
+  .btn.ghost:hover{background:rgba(0,113,227,.08)}
+  .btn[disabled]{opacity:.32;cursor:default;box-shadow:none;background:var(--ink-3)}
+  .btn[disabled]:hover{background:var(--ink-3)}
+
+  /* ---- stage card ---- */
+  .card{
+    background:var(--surface);border-radius:var(--radius);
+    box-shadow:var(--shadow);padding:clamp(30px,5vw,56px);
+    position:relative;overflow:hidden;
+  }
+  .card::before{
+    content:"";position:absolute;top:0;left:0;right:0;height:5px;
+    background:var(--accent,var(--blue));
+  }
+  .step-tag{
+    display:inline-flex;align-items:center;gap:9px;
+    font-size:13px;font-weight:600;color:var(--ink-2);
+    text-transform:uppercase;letter-spacing:.06em;margin-bottom:20px;
+  }
+  .step-tag .num{
+    display:inline-flex;align-items:center;justify-content:center;
+    min-width:30px;height:30px;padding:0 8px;border-radius:9px;
+    background:var(--accent,var(--blue));color:#fff;font-size:14px;font-weight:700;letter-spacing:0;
+  }
+  .step-tag .extra{
+    background:linear-gradient(90deg,var(--g1),var(--g2));
+    color:#fff;padding:4px 11px;border-radius:980px;font-size:11px;letter-spacing:.04em;
+  }
+  .card h2{
+    font-size:clamp(30px,4.6vw,46px);line-height:1.06;font-weight:700;
+    letter-spacing:-.025em;margin-bottom:20px;
+  }
+  .card .desc{
+    font-size:clamp(17px,2.1vw,21px);line-height:1.5;color:var(--ink-2);
+    letter-spacing:-.01em;margin-bottom:30px;
+  }
+  .meta{display:flex;flex-direction:column;gap:20px}
+  .meta-block .m-label{
+    font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;
+    color:var(--ink-3);margin-bottom:11px;
+  }
+  .chips{display:flex;flex-wrap:wrap;gap:8px}
+  .chip{
+    font-size:14px;font-weight:500;padding:8px 14px;border-radius:980px;
+    background:#f2f2f5;color:var(--ink);letter-spacing:-.01em;border:1px solid transparent;
+    transition:transform .15s;
+  }
+  .chip.role{background:rgba(99,102,241,.1);color:#4f46e5}
+  .chip.soft{background:#f2f2f5;color:#3a3a3c;border-color:var(--line)}
+
+  /* ---- gate ---- */
+  .gate-head{text-align:center;margin-bottom:34px}
+  .gate-approver{
+    display:inline-block;font-size:13px;font-weight:600;color:var(--ink-2);
+    background:#f2f2f5;padding:6px 15px;border-radius:980px;margin-bottom:18px;
+    letter-spacing:-.01em;
+  }
+  .gate-head h2{font-size:clamp(28px,4.4vw,44px);font-weight:700;letter-spacing:-.025em;line-height:1.08;margin-bottom:16px}
+  .gate-head .desc{font-size:clamp(16px,2vw,20px);color:var(--ink-2);line-height:1.5;max-width:560px;margin:0 auto;letter-spacing:-.01em}
+  .choices{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:8px}
+  .choice{
+    cursor:pointer;border:none;font-family:inherit;
+    background:var(--surface);border-radius:22px;padding:32px 20px;text-align:center;
+    box-shadow:var(--shadow);transition:transform .2s,box-shadow .2s;
+    display:flex;flex-direction:column;align-items:center;gap:12px;
+  }
+  .choice:hover{transform:translateY(-4px)}
+  .choice:active{transform:scale(.97)}
+  .choice .face{
+    width:76px;height:76px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+  }
+  .choice .face svg{width:44px;height:44px}
+  .choice.ok .face{background:rgba(40,198,90,.14)}
+  .choice.no .face{background:rgba(255,59,48,.12)}
+  .choice .c-title{font-size:19px;font-weight:600;letter-spacing:-.01em}
+  .choice.ok .c-title{color:var(--green-d)}
+  .choice.no .c-title{color:var(--red-d)}
+  .choice .c-sub{font-size:13.5px;color:var(--ink-3);line-height:1.35;max-width:220px}
+
+  @media(max-width:520px){.choices{grid-template-columns:1fr}}
+
+  /* ---- nav ---- */
+  .nav{
+    display:flex;align-items:center;justify-content:space-between;
+    max-width:760px;margin:26px auto 0;padding:0 4px;
+  }
+  .nav .spacer{flex:1}
+
+  /* ---- toast ---- */
+  .toast{
+    position:fixed;left:50%;bottom:34px;transform:translateX(-50%) translateY(20px);
+    background:var(--ink);color:#fff;padding:14px 22px;border-radius:14px;
+    font-size:15px;font-weight:500;letter-spacing:-.01em;z-index:80;
+    opacity:0;pointer-events:none;transition:all .4s cubic-bezier(.16,1,.3,1);
+    box-shadow:0 10px 30px rgba(0,0,0,.25);display:flex;align-items:center;gap:10px;
+  }
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  .toast .dot{width:9px;height:9px;border-radius:50%;background:var(--red)}
+
+  .shake{animation:shake .5s cubic-bezier(.36,.07,.19,.97) both}
+  @keyframes shake{
+    10%,90%{transform:translateX(-2px)}20%,80%{transform:translateX(4px)}
+    30%,50%,70%{transform:translateX(-8px)}40%,60%{transform:translateX(8px)}
+  }
+
+  /* ---- finale ---- */
+  .finale{text-align:center}
+  .finale .eyebrow{margin-bottom:16px}
+  .finale h1{
+    font-size:clamp(36px,6vw,68px);font-weight:700;letter-spacing:-.03em;line-height:1.05;
+    margin-bottom:18px;
+  }
+  .finale .sub{font-size:clamp(18px,2.4vw,24px);color:var(--ink-2);margin-bottom:52px;letter-spacing:-.01em;max-width:600px;margin-left:auto;margin-right:auto;line-height:1.4}
+  .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:18px;margin-bottom:48px}
+  @media(max-width:720px){.stats{grid-template-columns:repeat(2,1fr)}}
+  .stat{
+    background:var(--surface);border-radius:22px;padding:30px 16px;box-shadow:var(--shadow);
+  }
+  .stat .big{
+    font-size:clamp(44px,7vw,64px);font-weight:700;letter-spacing:-.04em;line-height:1;
+    background:linear-gradient(135deg,var(--g1),var(--g2));
+    -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;
+    font-variant-numeric:tabular-nums;
+  }
+  .stat .lbl{margin-top:12px;font-size:14px;color:var(--ink-2);font-weight:500;letter-spacing:-.01em;line-height:1.3}
+  .final-line{
+    font-size:clamp(22px,3.4vw,34px);font-weight:600;letter-spacing:-.02em;line-height:1.25;
+    max-width:640px;margin:0 auto 40px;
+  }
+  .tool-cloud{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;max-width:680px;margin:0 auto 46px}
+  .tool-cloud .chip{background:#fff;border:1px solid var(--line);color:var(--ink-2);font-size:13px}
+
+  /* ---- mini-map under card ---- */
+  .mini{
+    margin:22px auto 0;max-width:760px;padding:18px 20px;
+    background:rgba(255,255,255,.62);border:1px solid var(--line);border-radius:20px;
+    backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);
+  }
+  .mini .mini-label{
+    font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;
+    color:var(--ink-3);margin-bottom:13px;text-align:center;
+  }
+  .mini-row{display:flex;flex-wrap:wrap;gap:7px;justify-content:center;align-items:center}
+  .mm{
+    width:24px;height:24px;border-radius:8px;background:#e2e2e8;color:#8a8a90;
+    font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;
+    transition:all .3s cubic-bezier(.4,0,.2,1);font-variant-numeric:tabular-nums;
+    border:none;cursor:pointer;font-family:inherit;padding:0;
+  }
+  .mm:hover{background:#c9c9d2;transform:translateY(-2px)}
+  .mm:active{transform:scale(.9)}
+  .mm.done:hover{background:#3a3a3c}
+  .mm.gate{border-radius:50%}
+  .mm.done{background:var(--ink);color:#fff}
+  .mm.now{width:34px;height:34px;font-size:13px;background:var(--accent,var(--blue));color:#fff;box-shadow:0 4px 12px rgba(0,0,0,.2)}
+  .mm.gate.now{background:linear-gradient(135deg,var(--green),var(--red))}
+  .map-cta{
+    display:block;margin:15px auto 0;font-size:14px;font-weight:600;color:var(--blue);
+    background:transparent;border:none;cursor:pointer;padding:9px 16px;border-radius:980px;
+    transition:background .2s;font-family:inherit;
+  }
+  .map-cta:hover{background:rgba(0,113,227,.08)}
+
+  /* ---- per-stage diagram ---- */
+  .diagram{
+    margin:20px auto 0;max-width:660px;padding:20px;
+    background:rgba(255,255,255,.62);border:1px solid var(--line);border-radius:20px;
+    backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);
+  }
+  .diagram .mini-label{margin-bottom:14px}
+  .diagram svg{width:100%;height:auto;display:block}
+  .diagram svg text{font-family:inherit;letter-spacing:-.01em}
+
+  /* ---- full schema overlay ---- */
+  .overlay{
+    position:fixed;inset:0;z-index:100;
+    background:rgba(251,251,253,.9);
+    backdrop-filter:saturate(180%) blur(24px);-webkit-backdrop-filter:saturate(180%) blur(24px);
+    overflow-y:auto;opacity:0;pointer-events:none;transition:opacity .35s;
+  }
+  .overlay.show{opacity:1;pointer-events:auto}
+  .overlay-inner{max-width:560px;margin:0 auto;padding:64px 20px 130px}
+  .overlay .o-eyebrow{
+    text-align:center;font-size:13px;font-weight:600;letter-spacing:.02em;margin-bottom:10px;
+    background:linear-gradient(90deg,var(--g1),var(--g2));
+    -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;
+  }
+  .overlay h2{text-align:center;font-size:clamp(26px,5vw,38px);font-weight:700;letter-spacing:-.025em;margin-bottom:8px}
+  .overlay .osub{text-align:center;color:var(--ink-2);font-size:15px;margin-bottom:34px;letter-spacing:-.01em}
+  .flow{display:flex;flex-direction:column;align-items:stretch}
+  .flow-svg svg{width:100%;height:auto;display:block}
+  .flow-svg svg text{font-family:inherit;letter-spacing:-.01em}
+  .fnode{
+    background:var(--surface);border-radius:16px;box-shadow:var(--shadow);
+    padding:15px 17px;position:relative;border-left:5px solid var(--fc,var(--blue));
+  }
+  .fn-top{display:flex;align-items:center;gap:11px}
+  .fn-num{
+    min-width:27px;height:27px;border-radius:8px;background:var(--fc,var(--blue));color:#fff;
+    font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;
+  }
+  .fn-title{font-size:15.5px;font-weight:600;letter-spacing:-.01em;line-height:1.25}
+  .fn-tag{margin-left:auto;font-size:10px;font-weight:700;letter-spacing:.04em;color:#fff;padding:3px 9px;border-radius:980px;background:linear-gradient(90deg,var(--g1),var(--g2));flex-shrink:0}
+  .fn-sub{margin-top:10px;display:flex;flex-wrap:wrap;gap:5px}
+  .fn-sub span{font-size:11px;padding:4px 9px;border-radius:8px;background:#f2f2f5;color:var(--ink-2);font-weight:500}
+  .fnode.here{outline:2.5px solid var(--blue);outline-offset:3px}
+  .here-badge{
+    position:absolute;top:-11px;right:13px;background:var(--blue);color:#fff;
+    font-size:10px;font-weight:700;padding:3px 10px;border-radius:980px;letter-spacing:.03em;
+  }
+  .connector{width:2px;height:20px;background:#d3d3d9;margin:0 auto}
+  .fgate{border-left-color:var(--green)}
+  .fgate .fn-num{background:var(--green);font-size:15px}
+  .fg-branches{margin-top:11px;display:flex;flex-direction:column;gap:6px}
+  .fbranch{display:flex;align-items:center;gap:8px;font-size:12.5px;font-weight:500;padding:7px 11px;border-radius:10px;letter-spacing:-.01em}
+  .fbranch.ok{background:rgba(40,198,90,.11);color:var(--green-d)}
+  .fbranch.no{background:rgba(255,59,48,.1);color:var(--red-d)}
+  .fbranch .fdot{width:9px;height:9px;border-radius:50%;flex-shrink:0}
+  .fbranch.ok .fdot{background:var(--green)}
+  .fbranch.no .fdot{background:var(--red)}
+  .overlay-actions{
+    position:fixed;left:0;right:0;bottom:0;z-index:101;
+    padding:15px 20px calc(15px + env(safe-area-inset-bottom));
+    display:flex;gap:12px;justify-content:center;
+    background:rgba(251,251,253,.82);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
+    border-top:1px solid rgba(0,0,0,.06);
+  }
+  .overlay-actions .btn{font-size:16px;padding:13px 26px}
+
+  @media(max-width:480px){
+    .stage{padding:118px 16px 100px}
+    .card{padding:26px 22px}
+    .overlay-actions .btn{flex:1;padding:13px 12px;font-size:15px}
+  }
+
+  @media(prefers-reduced-motion:reduce){
+    .anim-in,.shake{animation:none}
+    *{transition:none!important}
+  }
+</style>
+</head>
+<body>
+
+<div class="bar">
+  <div class="brand">Пайплайн ИИ-креативов <span>· LineX</span></div>
+  <div class="counter" id="counter"></div>
+</div>
+
+<div class="rail hidden" id="rail"></div>
+
+<div class="stage">
+  <div class="screen" id="screen"></div>
+</div>
+
+<div class="toast" id="toast"><span class="dot"></span><span id="toastText"></span></div>
+
+<script>
+/* ---------------- DATA ---------------- */
+const STAGES = [
+  {
+    type:"input", accent:"#0071e3", tag:"Старт",
+    title:"Вход задачи",
+    desc:"Задача падает из Asana — её ловят боты и Bat-скрипты раньше, чем я успеваю налить кофе.",
+    roles:[],
+    soft:["Asana","ИИ внутри Asana","Bat-скрипты"]
+  },
+  {
+    type:"prep", accent:"#5856d6",
+    title:"Бриф и референсы",
+    desc:"Беру сырой бриф и собираю референсы. Иногда бриф — это два слова и вера в меня.",
+    roles:[],
+    soft:[]
+  },
+  {
+    type:"prep", accent:"#5856d6",
+    title:"Формализация задания",
+    desc:"Сырой бриф превращается в точную постановку. Тот самый узел, который делает задачу кристально понятной.",
+    roles:["Промпт-инженер"],
+    soft:["Claude (skill)"]
+  },
+  {
+    type:"create", accent:"#af52de",
+    title:"Сценарий и опорные кадры",
+    desc:"Пишу сценарий ролика и генерю ключевые кадры. Здесь решается: зритель досмотрит или свайпнёт за две секунды.",
+    roles:["Сценарист","Промпт-инженер","Кит-баш дизайнер"],
+    soft:["ComfyUI","Seedream","Nano Banana","Veo","Kling","Illustrator","Photoshop"]
+  },
+  {
+    type:"create", accent:"#af52de",
+    title:"Аниматик",
+    desc:"Статичные кадры собираются в аниматик — черновой прогон истории. Дёшево ошибиться здесь, пока не сожжены дорогие генерации.",
+    roles:["Режиссёр монтажа"],
+    soft:["DaVinci Resolve"]
+  },
+  {
+    type:"create", accent:"#ff9500", extra:"параллельно",
+    title:"Музыка и звук",
+    desc:"Пока идёт картинка — отдельно рождаются музыка и SFX. Активная работа с настоящим музыкантом.",
+    roles:["Композер","Саунд-дизайнер","Саунд-продюсер"],
+    soft:["DaVinci Fairlight","VST"]
+  },
+  {
+    type:"gate", approver:"Заказчик",
+    title:"Утверждение концепта",
+    desc:"Заказчик смотрит концепт и аниматик. Зелёный — летим дальше. Красный — правим, пока дёшево. Это не провал, а штатный этап любого продакшена.",
+    reworkTo:3
+  },
+  {
+    type:"create", accent:"#af52de",
+    title:"Генерация · Композитинг · VFX",
+    desc:"Кадры оживают в видео, собирается композитинг и VFX, звук подгоняется под картинку. Самый ресурсоёмкий этап — тут горят кредиты.",
+    roles:["VFX-артист","Колорист","Композитинг-артист","Звукорежиссёр"],
+    soft:["ComfyUI","Kling","After Effects","DaVinci Fusion"],
+    flowSub:["Генерация видео","Композитинг + VFX","Подгонка музыки"]
+  },
+  {
+    type:"create", accent:"#af52de",
+    title:"Монтаж",
+    desc:"Всё сводится в единый монтаж — ритм, склейки, тайминги. История начинает дышать.",
+    roles:["Режиссёр монтажа"],
+    soft:["DaVinci Resolve","LUA-скрипты"]
+  },
+  {
+    type:"create", accent:"#af52de",
+    title:"Цвет и мастеринг",
+    desc:"Цветокоррекция и мастеринг звука - финальная склейка.",
+    roles:["Колорист","Звукорежиссёр"],
+    soft:["DaVinci Resolve","LUA-скрипты","Dehancer","LUTs","VST"]
+  },
+  {
+    type:"gate", approver:"Заказчик",
+    title:"Утверждение готового видео",
+    desc:"Финальный просмотр. Зелёный — на выгрузку. Красный — точечная доработка генерации и композитинга.",
+    reworkTo:7
+  },
+  {
+    type:"output", accent:"#28c65a",
+    title:"Рендер и выгрузка",
+    desc:"Рендерю все форматы и ресайзы под площадки, проверяю вес и кодеки, выкладываю на Google Drive. Готово к бою.",
+    roles:["Монтажёр","Контент-менеджер"],
+    soft:["MediaInfo","Shutter Encoder"]
+  }
+];
+
+/* ---------------- DERIVED STATS ---------------- */
+const uniq = a => [...new Set(a)];
+const ALL_ROLES = uniq(STAGES.flatMap(s => s.roles || []));
+const ALL_SOFT  = uniq(STAGES.flatMap(s => s.soft || []));
+const GATE_COUNT = STAGES.filter(s => s.type === "gate").length;
+const STAGE_COUNT = STAGES.length;
+
+/* ---------------- STATE ---------------- */
+let view = "intro"; // intro | number(index) | finale
+const screen = document.getElementById("screen");
+const rail = document.getElementById("rail");
+const counter = document.getElementById("counter");
+const toast = document.getElementById("toast");
+const toastText = document.getElementById("toastText");
+let maxReached = 0;
+
+/* icons */
+const smile = `<svg viewBox="0 0 44 44" fill="none"><circle cx="22" cy="22" r="20" stroke="#28c65a" stroke-width="3"/><circle cx="15" cy="18" r="2.4" fill="#28c65a"/><circle cx="29" cy="18" r="2.4" fill="#28c65a"/><path d="M13 26c2.6 4 6 6 9 6s6.4-2 9-6" stroke="#28c65a" stroke-width="3" stroke-linecap="round"/></svg>`;
+const frown = `<svg viewBox="0 0 44 44" fill="none"><circle cx="22" cy="22" r="20" stroke="#ff3b30" stroke-width="3"/><circle cx="15" cy="18" r="2.4" fill="#ff3b30"/><circle cx="29" cy="18" r="2.4" fill="#ff3b30"/><path d="M13 32c2.6-4 6-6 9-6s6.4 2 9 6" stroke="#ff3b30" stroke-width="3" stroke-linecap="round"/></svg>`;
+
+/* ---------------- RENDER ---------------- */
+function render(){
+  buildRail();
+  if(view === "intro"){ renderIntro(); counter.textContent=""; rail.classList.add("hidden"); return; }
+  if(view === "finale"){ renderFinale(); counter.textContent="Готово"; rail.classList.add("hidden"); return; }
+  rail.classList.remove("hidden");
+  const i = view;
+  counter.textContent = `${i+1} / ${STAGE_COUNT}`;
+  const s = STAGES[i];
+  if(s.type === "gate") renderGate(i,s); else renderStage(i,s);
+}
+
+function renderIntro(){
+  screen.innerHTML = `
+    <div class="intro anim-in">
+      <div class="eyebrow">LineX · Продакшн-стандарт</div>
+      <h1>Как рождается<br>ИИ-креатив</h1>
+      <p class="lead">Путь одной задачи — от двух строк брифа до готового ролика. ${STAGE_COUNT} этапов, которые проходит один человек.</p>
+      <button class="btn" id="startBtn">Начать</button>
+      <div class="hint">Навигация: <span class="kbd">←</span> <span class="kbd">→</span> или кнопки</div>
+    </div>`;
+  document.getElementById("startBtn").onclick = ()=> go(0);
+}
+
+function chipRow(label, items, cls){
+  if(!items || !items.length) return "";
+  return `<div class="meta-block">
+    <div class="m-label">${label}</div>
+    <div class="chips">${items.map(t=>`<span class="chip ${cls}">${t}</span>`).join("")}</div>
+  </div>`;
+}
+
+function renderStage(i,s){
+  screen.innerHTML = `
+    <div class="card anim-in" style="--accent:${s.accent}">
+      <div class="step-tag">
+        <span class="num">${String(i+1).padStart(2,"0")}</span>
+        ${s.tag ? s.tag : "Этап"}
+        ${s.extra ? `<span class="extra">${s.extra}</span>`:""}
+      </div>
+      <h2>${s.title}</h2>
+      <div class="desc">${s.desc}</div>
+      <div class="meta">
+        ${chipRow("Профессии в работе", s.roles, "role")}
+        ${chipRow("Инструменты", s.soft, "soft")}
+      </div>
+    </div>`;
+  buildNav(i);
+}
+
+function renderGate(i,s){
+  screen.innerHTML = `
+    <div class="anim-in">
+      <div class="card" style="--accent:linear-gradient(90deg,#28c65a,#ff3b30);padding-bottom:30px">
+        <div class="gate-head">
+          <div class="gate-approver">Утверждает: ${s.approver}</div>
+          <h2>${s.title}</h2>
+          <div class="desc" style="margin:0 auto">${s.desc}</div>
+        </div>
+        <div class="choices">
+          <button class="choice ok" id="okBtn">
+            <div class="face">${smile}</div>
+            <div class="c-title">Принято</div>
+            <div class="c-sub">Идём на следующий этап</div>
+          </button>
+          <button class="choice no" id="noBtn">
+            <div class="face">${frown}</div>
+            <div class="c-title">На доработку</div>
+            <div class="c-sub">Возврат к правкам — штатная петля процесса</div>
+          </button>
+        </div>
+      </div>
+    </div>`;
+  document.getElementById("okBtn").onclick = ()=> go(i+1);
+  document.getElementById("noBtn").onclick = ()=>{
+    const card = screen.querySelector(".card");
+    card.classList.add("shake");
+    showToast("Отправлено на доработку → возврат к этапу " + (s.reworkTo+1));
+    setTimeout(()=> go(s.reworkTo), 620);
+  };
+  buildNav(i,true);
+}
+
+function buildNav(i, isGate){
+  const nav = document.createElement("div");
+  nav.className = "nav";
+  const back = `<button class="btn ghost" id="backBtn">← Назад</button>`;
+  let fwd = "";
+  if(!isGate){
+    const last = i === STAGE_COUNT-1;
+    fwd = `<button class="btn" id="fwdBtn">${last ? "Итоги →" : "Дальше →"}</button>`;
+  } else {
+    fwd = `<span style="font-size:13px;color:var(--ink-3)">Выбери реакцию заказчика ↑</span>`;
+  }
+  nav.innerHTML = back + `<div class="spacer"></div>` + fwd;
+  screen.appendChild(nav);
+  document.getElementById("backBtn").onclick = ()=> i===0 ? go("intro") : go(i-1);
+  const fb = document.getElementById("fwdBtn");
+  if(fb) fb.onclick = ()=> i === STAGE_COUNT-1 ? go("finale") : go(i+1);
+  renderMiniMap(i);
+}
+
+function renderFinale(){
+  screen.innerHTML = `
+    <div class="finale anim-in">
+      <div class="eyebrow">Задача закрыта</div>
+      <h1>Один пайплайн.<br>Один человек.</h1>
+      <p class="sub">От сырого брифа до готового креатива — весь путь пройден в одиночку.</p>
+      <div class="stats">
+        <div class="stat"><div class="big" data-to="${STAGE_COUNT}">0</div><div class="lbl">этапов<br>пройдено</div></div>
+        <div class="stat"><div class="big" data-to="${ALL_ROLES.length}">0</div><div class="lbl">профессий<br>в одних руках</div></div>
+        <div class="stat"><div class="big" data-to="${ALL_SOFT.length}">0</div><div class="lbl">инструментов<br>задействовано</div></div>
+        <div class="stat"><div class="big" data-to="${GATE_COUNT}">0</div><div class="lbl">точки утверждения<br>заказчиком</div></div>
+      </div>
+      <div class="final-line">Это не «нажал кнопку в нейросети».<br>Это студия из одного человека.</div>
+      <div class="tool-cloud">${ALL_SOFT.map(t=>`<span class="chip">${t}</span>`).join("")}</div>
+      <button class="btn" id="againBtn">Пройти заново</button>
+    </div>`;
+  document.getElementById("againBtn").onclick = ()=> go("intro");
+  animateCounters();
+}
+
+function animateCounters(){
+  const reduce = window.matchMedia("(prefers-reduced-motion:reduce)").matches;
+  document.querySelectorAll(".stat .big").forEach(el=>{
+    const to = +el.dataset.to;
+    if(reduce){ el.textContent = to; return; }
+    let cur = 0;
+    const dur = 900, t0 = performance.now();
+    function tick(t){
+      const p = Math.min(1,(t-t0)/dur);
+      const e = 1-Math.pow(1-p,3);
+      el.textContent = Math.round(e*to);
+      if(p<1) requestAnimationFrame(tick);
+    }
+    requestAnimationFrame(tick);
+  });
+}
+
+/* ---------------- RAIL ---------------- */
+function buildRail(){
+  rail.innerHTML = "";
+  STAGES.forEach((s,idx)=>{
+    const el = document.createElement("div");
+    el.className = "seg" + (s.type==="gate"?" gate":"");
+    if(typeof view === "number"){
+      if(idx < view) el.classList.add("done");
+      else if(idx === view) el.classList.add("now");
+    } else if(view === "finale"){ el.classList.add("done"); }
+    rail.appendChild(el);
+  });
+}
+
+/* ---------------- NAV / HELPERS ---------------- */
+function go(target){
+  view = target;
+  if(typeof target === "number") maxReached = Math.max(maxReached,target);
+  window.scrollTo({top:0,behavior:"instant"});
+  render();
+}
+let toastTimer;
+function showToast(msg){
+  toastText.textContent = msg;
+  toast.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(()=> toast.classList.remove("show"), 2600);
+}
+
+/* ---------------- DIAGRAM DATA (per stage) ---------------- */
+const DIAG = [
+  {boxes:["ВХОД ЗАДАЧИ"], prev:null, lane:{code:"A",title:"ASANA",text:"Задача по генерации ИИ от заказчика"}},
+  {boxes:["Получение сырого брифа","Получение референсов"], prev:"ВХОД ЗАДАЧИ", lane:{code:"A",title:"ASANA",text:"Задача по генерации ИИ от заказчика"}},
+  {boxes:["Создание точного задания · Claude skill"], prev:"Референсы", lane:{code:"МД",title:"Моушн-дизайнер",text:"Промпт-инженер"}},
+  {boxes:["Создание сценария для видео","Создание опорных кадров"], prev:"Точное задание", lane:{code:"МД",title:"Моушн-дизайнер",text:"Сценарист, промпт-инженер, кит-баш дизайнер"}},
+  {boxes:["Аниматик со статичными опорными кадрами"], prev:"Сценарий и кадры", lane:{code:"МД",title:"Моушн-дизайнер",text:"Режиссёр монтажа"}},
+  {boxes:["Создание фоновой музыки и звук-эффектов"], prev:"Аниматик", lane:{code:"МД",title:"Моушн-дизайнер",text:"Композер, саунд-дизайнер, саунд-продюсер"}},
+  {gate:true, reworkTo:3, lane:{code:"З",title:"Заказчик",text:"Утверждение концепта и аниматика"}},
+  {boxes:["Генерация видео","Композитинг и VFX","Подгонка музыки и SFX"], prev:"Утверждение", lane:{code:"МД",title:"Моушн-дизайнер",text:"VFX-артист, колорист, композитинг, звукорежиссёр"}},
+  {boxes:["Объединение в монтаже"], prev:"Генерация · VFX", lane:{code:"МД",title:"Моушн-дизайнер",text:"Режиссёр монтажа"}},
+  {boxes:["Цветокоррекция","Мастеринг звука"], prev:"Монтаж", lane:{code:"МД",title:"Моушн-дизайнер",text:"Колорист, звукорежиссёр"}},
+  {gate:true, reworkTo:7, lane:{code:"З",title:"Заказчик",text:"Утверждение готового видео"}},
+  {boxes:["Рендер ресайзов · передача через Google Drive"], prev:"Утверждение", lane:{code:"МД",title:"Моушн-дизайнер",text:"Монтажёр, контент-менеджер"}}
+];
+
+/* ---------------- SVG HELPERS ---------------- */
+function esc(s){return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");}
+function svgWrap(W,H,inner){return `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Схема этапа">${inner}</svg>`;}
+function rRect(x,y,w,h,r,fill,stroke,sw){return `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="${r}" ry="${r}" fill="${fill}" stroke="${stroke}" stroke-width="${sw}"/>`;}
+function wrapText(t,max){
+  const words=String(t).split(" ");const lines=[];let cur="";
+  words.forEach(w=>{
+    if((cur+" "+w).trim().length>max){ if(cur)lines.push(cur); cur=w; }
+    else cur=(cur+" "+w).trim();
+  });
+  if(cur)lines.push(cur);
+  return lines.length?lines:[""];
+}
+function mText(cx,cy,t,color,size,max,weight){
+  const lines=wrapText(t,max);const lh=size+3;const y0=cy-(lines.length-1)*lh/2;
+  return lines.map((ln,k)=>`<text x="${cx}" y="${y0+k*lh}" fill="${color}" font-size="${size}" font-weight="${weight||500}" text-anchor="middle" dominant-baseline="central">${esc(ln)}</text>`).join("");
+}
+function headR(x,y,c){return `<polygon points="${x},${y} ${x-8},${y-4.5} ${x-8},${y+4.5}" fill="${c}"/>`;}
+function headL(x,y,c){return `<polygon points="${x},${y} ${x+8},${y-4.5} ${x+8},${y+4.5}" fill="${c}"/>`;}
+function elbow(sx,sy,tx,ty,c){
+  const mx=sx+(tx-sx)*0.5;
+  return `<path d="M ${sx} ${sy} H ${mx} V ${ty} H ${tx-8}" fill="none" stroke="${c}" stroke-width="2"/>`+headR(tx,ty,c);
+}
+function straight(sx,sy,ex,ey,c,dash){
+  return `<line x1="${sx}" y1="${sy}" x2="${ex-8}" y2="${ey}" stroke="${c}" stroke-width="2" ${dash?'stroke-dasharray="3 5"':''}/>`+headR(ex,ey,c);
+}
+function smiley(cx,cy,happy){
+  const c=happy?"#28c65a":"#ff3b30";const r=19;
+  const mouth=happy?`M ${cx-8} ${cy+4} Q ${cx} ${cy+12} ${cx+8} ${cy+4}`:`M ${cx-8} ${cy+8} Q ${cx} ${cy} ${cx+8} ${cy+8}`;
+  return `<circle cx="${cx}" cy="${cy}" r="${r}" fill="#fff" stroke="${c}" stroke-width="2.4"/>`+
+    `<circle cx="${cx-6}" cy="${cy-4}" r="2" fill="${c}"/><circle cx="${cx+6}" cy="${cy-4}" r="2" fill="${c}"/>`+
+    `<path d="${mouth}" fill="none" stroke="${c}" stroke-width="2.4" stroke-linecap="round"/>`;
+}
+function laneBlock(W,dividerY,accent,lane){
+  const laneLines=wrapText(lane.text,42);
+  const laneH=30+laneLines.length*15+8;
+  const lx=150,lw=Math.min(340,W-160),ly=dividerY+18;
+  let s=`<line x1="14" y1="${dividerY}" x2="${W-14}" y2="${dividerY}" stroke="#dcdce2" stroke-width="1.4" stroke-dasharray="2 5"/>`;
+  s+=rRect(lx,ly,lw,laneH,12,"#f5f5f7","#e4e4ea",1);
+  s+=rRect(lx+12,ly+laneH/2-15,30,30,8,accent,accent,0);
+  s+=`<text x="${lx+27}" y="${ly+laneH/2}" fill="#fff" font-size="12" font-weight="700" text-anchor="middle" dominant-baseline="central">${esc(lane.code)}</text>`;
+  s+=`<text x="${lx+52}" y="${ly+22}" fill="#1d1d1f" font-size="12" font-weight="700">${esc(lane.title)}</text>`;
+  laneLines.forEach((ln,k)=>{s+=`<text x="${lx+52}" y="${ly+40+k*15}" fill="#6e6e73" font-size="11">${esc(ln)}</text>`;});
+  return {svg:s,bottom:ly+laneH};
+}
+
+/* ---------------- STAGE DIAGRAM ---------------- */
+function stageDiagramSVG(i){
+  const s=STAGES[i], d=DIAG[i], accent=s.accent||"#0071e3", W=620;
+  if(d.gate) return gateDiagramSVG(i,d,W);
+
+  const boxW=182,boxH=50,gap=18,pad=22;
+  const n=d.boxes.length, blockH=n*boxH+(n-1)*gap;
+  const top=pad, midY=top+blockH/2;
+  const boxX=224, rightMid=boxX+boxW;
+  const last=(i===STAGE_COUNT-1);
+
+  let els="";
+  // prev context box
+  let srcX,srcY=midY;
+  if(d.prev){
+    const pw=110,ph=46,px=12,py=midY-ph/2;
+    els+=rRect(px,py,pw,ph,12,"#fff","#c7c7cf",1.4)+mText(px+pw/2,py+ph/2,d.prev,"#8a8a90",10.5,17);
+    srcX=px+pw;
+  } else srcX=10;
+  // current boxes + fork arrows
+  d.boxes.forEach((b,idx)=>{
+    const by=top+idx*(boxH+gap);
+    els+=elbow(srcX,srcY,boxX,by+boxH/2,accent);
+    els+=rRect(boxX,by,boxW,boxH,13,"#fff",accent,2)+mText(boxX+boxW/2,by+boxH/2,b,"#1d1d1f",11,26,600);
+  });
+  // outgoing
+  if(last){
+    const ew=118,ex=W-ew-12,ey=midY;
+    els+=straight(rightMid,midY,ex,ey,accent);
+    els+=rRect(ex,ey-23,ew,46,12,"#fff","#28c65a",1.8)+mText(ex+ew/2,ey,"ВЫХОД ЗАДАЧИ","#1d8a3e",11,16,700);
+  } else {
+    els+=straight(rightMid,midY,W-12,midY,accent);
+  }
+  const lane=laneBlock(W,top+blockH+26,accent,d.lane);
+  els+=lane.svg;
+  return svgWrap(W,lane.bottom+pad,els);
+}
+
+/* ---------------- GATE DIAGRAM ---------------- */
+function gateDiagramSVG(i,d,W){
+  const accent="#8a8a90";
+  const cx=176,cy=72,hx=52,hy=38;
+  let els="";
+  // incoming
+  els+=straight(10,cy,cx-hx,cy,"#c7c7cf");
+  // diamond
+  els+=`<polygon points="${cx-hx},${cy} ${cx},${cy-hy} ${cx+hx},${cy} ${cx},${cy+hy}" fill="#fff" stroke="${accent}" stroke-width="1.8"/>`;
+  els+=mText(cx,cy,"Утверждение","#1d1d1f",11,12,600);
+  // green branch
+  const gx=372,gy=40;
+  els+=`<path d="M ${cx+hx} ${cy} Q ${gx-46} ${cy} ${gx-22} ${gy}" fill="none" stroke="#28c65a" stroke-width="2"/>`+headR(gx-20,gy+2,"#28c65a");
+  els+=smiley(gx,gy,true);
+  els+=`<text x="${gx+26}" y="${gy-10}" fill="#1d8a3e" font-size="11" font-weight="700">Принято</text>`;
+  els+=straight(gx+20,gy,W-14,gy,"#28c65a");
+  els+=`<text x="${W-14}" y="${gy-10}" fill="#1d8a3e" font-size="11" font-weight="600" text-anchor="end">дальше</text>`;
+  // red branch (rework)
+  const rx=372,ry=112;
+  els+=`<path d="M ${cx+hx*0.5} ${cy+hy*0.55} Q ${rx-50} ${cy+34} ${rx-22} ${ry}" fill="none" stroke="#ff3b30" stroke-width="2" stroke-dasharray="3 5"/>`+headR(rx-20,ry-2,"#ff3b30");
+  els+=smiley(rx,ry,false);
+  // rework loop back
+  const ly=150;
+  els+=`<path d="M ${rx} ${ry+20} V ${ly} H 22" fill="none" stroke="#ff3b30" stroke-width="2" stroke-dasharray="3 5"/>`+headL(14,ly,"#ff3b30");
+  els+=`<text x="${rx-6}" y="${ly-8}" fill="#e02b21" font-size="11" font-weight="600" text-anchor="end">на доработку → этап ${d.reworkTo+1}</text>`;
+  const lane=laneBlock(W,ly+22,"#5856d6",d.lane);
+  els+=lane.svg;
+  return svgWrap(W,lane.bottom+22,els);
+}
+
+/* ---------------- MINI-MAP ---------------- */
+function renderMiniMap(i){
+  const wrap = document.createElement("div");
+  wrap.className = "mini";
+  const accent = STAGES[i].accent || "var(--blue)";
+  const nodes = STAGES.map((s,idx)=>{
+    let cls = "mm" + (s.type==="gate"?" gate":"");
+    let content = s.type==="gate" ? "◇" : String(idx+1);
+    if(idx < i) cls += " done";
+    else if(idx === i) cls += " now";
+    return `<button class="${cls}" data-i="${idx}" title="${esc(s.title)}" style="${idx===i?`--accent:${accent}`:``}">${content}</button>`;
+  }).join("");
+  wrap.innerHTML = `
+    <div class="mini-label">Где мы в пайплайне</div>
+    <div class="mini-row">${nodes}</div>
+    <button class="map-cta" id="fullMapBtn">Посмотреть всю схему →</button>`;
+  screen.appendChild(wrap);
+  wrap.querySelectorAll(".mm").forEach(b=>{
+    b.onclick = ()=> go(+b.dataset.i);
+  });
+  document.getElementById("fullMapBtn").onclick = ()=> openFullSchema(i);
+
+  const dia = document.createElement("div");
+  dia.className = "diagram";
+  dia.innerHTML = `<div class="mini-label">Схема этапа</div>` + stageDiagramSVG(i);
+  screen.appendChild(dia);
+}
+
+/* ---------------- FULL SCHEMA OVERLAY ---------------- */
+const overlay = document.createElement("div");
+overlay.className = "overlay";
+document.body.appendChild(overlay);
+let overlayOpen = false;
+
+function downHead(x,y,c){return `<polygon points="${x},${y} ${x-4.5},${y-8} ${x+4.5},${y-8}" fill="${c}"/>`;}
+function fullFlowSVG(here){
+  const W=520, nodeX=96, nodeW=380, gap=32, pad=22;
+  const nodes = STAGES.map((s,idx)=>{
+    const isGate=s.type==="gate"; const sub=s.flowSub||[];
+    const h=isGate?60:(56+sub.length*15);
+    return {idx,s,isGate,sub,h};
+  });
+  nodes.push({exit:true,h:50});
+  let y=pad;
+  nodes.forEach(n=>{ n.top=y; n.mid=y+n.h/2; n.bottom=y+n.h; y+=n.h+gap; });
+  const H=y-gap+pad;
+  let els="";
+  // connectors
+  for(let k=1;k<nodes.length;k++){
+    const a=nodes[k-1], b=nodes[k];
+    const green = a.s && a.s.type==="gate";
+    const c = green?"#28c65a":"#c7c7cf";
+    els+=`<line x1="${W/2}" y1="${a.bottom}" x2="${W/2}" y2="${b.top-7}" stroke="${c}" stroke-width="2"/>`+downHead(W/2,b.top,c);
+  }
+  // rework loops
+  nodes.forEach(n=>{
+    if(n.isGate){
+      const t=nodes.find(m=>m.idx===DIAG[n.idx].reworkTo);
+      if(t){
+        els+=`<path d="M ${nodeX} ${n.mid+6} C 26 ${n.mid}, 26 ${t.mid}, ${nodeX-8} ${t.mid}" fill="none" stroke="#ff3b30" stroke-width="2" stroke-dasharray="3 5"/>`+headR(nodeX,t.mid,"#ff3b30");
+      }
+    }
+  });
+  // nodes
+  nodes.forEach(n=>{
+    if(n.exit){
+      els+=rRect(nodeX,n.top,nodeW,n.h,14,"#fff","#28c65a",2);
+      els+=mText(nodeX+nodeW/2,n.mid,"✓  Выход задачи — креатив готов","#1d8a3e",13,42,700);
+      return;
+    }
+    const s=n.s, isHere=(n.idx===here), accent=s.accent||"#8a8a90";
+    if(n.isGate){
+      els+=rRect(nodeX,n.top,nodeW,n.h,14,"#fff","#8a8a90",1.6);
+      els+=`<text x="${nodeX+18}" y="${n.top+27}" fill="#1d1d1f" font-size="13.5" font-weight="700">◇ ${esc(s.title)}</text>`;
+      els+=smiley(nodeX+nodeW-62,n.mid+3,true);
+      els+=smiley(nodeX+nodeW-24,n.mid+3,false);
+      els+=`<text x="${nodeX+18}" y="${n.top+47}" fill="#6e6e73" font-size="11">Принято → дальше · На доработку → этап ${DIAG[n.idx].reworkTo+1}</text>`;
+    } else {
+      els+=rRect(nodeX,n.top,nodeW,n.h,14,"#fff",accent,2);
+      els+=`<circle cx="${nodeX+27}" cy="${n.top+28}" r="13" fill="${accent}"/>`;
+      els+=`<text x="${nodeX+27}" y="${n.top+28}" fill="#fff" font-size="12" font-weight="700" text-anchor="middle" dominant-baseline="central">${n.idx+1}</text>`;
+      els+=`<text x="${nodeX+50}" y="${n.top+33}" fill="#1d1d1f" font-size="13.5" font-weight="600">${esc(s.title)}</text>`;
+      n.sub.forEach((x,k)=>{els+=`<text x="${nodeX+50}" y="${n.top+52+k*15}" fill="#6e6e73" font-size="11">• ${esc(x)}</text>`;});
+    }
+    if(isHere){
+      els+=`<rect x="${nodeX-4}" y="${n.top-4}" width="${nodeW+8}" height="${n.h+8}" rx="17" fill="none" stroke="#0071e3" stroke-width="2.5"/>`;
+      els+=`<rect x="${nodeX+nodeW-84}" y="${n.top-11}" width="80" height="21" rx="10.5" fill="#0071e3"/>`;
+      els+=`<text x="${nodeX+nodeW-44}" y="${n.top-0.5}" fill="#fff" font-size="10" font-weight="700" text-anchor="middle">Ты здесь</text>`;
+    }
+  });
+  return svgWrap(W,H,els);
+}
+
+function buildFullSchema(here){
+  overlay.innerHTML = `
+    <div class="overlay-inner">
+      <div class="o-eyebrow">Полная схема</div>
+      <h2>Пайплайн ИИ-креативов</h2>
+      <div class="osub">${STAGE_COUNT} этапов · ${GATE_COUNT} точки утверждения · один человек</div>
+      <div class="flow-svg">${fullFlowSVG(here)}</div>
+    </div>
+    <div class="overlay-actions">
+      <button class="btn ghost" id="ovBack">← Вернуться</button>
+      <button class="btn" id="ovNext">${here===STAGE_COUNT-1?"К итогам →":"Продолжить →"}</button>
+    </div>`;
+  document.getElementById("ovBack").onclick = closeFullSchema;
+  document.getElementById("ovNext").onclick = ()=>{
+    closeFullSchema();
+    here===STAGE_COUNT-1 ? go("finale") : go(here+1);
+  };
+}
+
+function openFullSchema(here){
+  buildFullSchema(here);
+  overlayOpen = true;
+  overlay.classList.add("show");
+  overlay.scrollTop = 0;
+}
+function closeFullSchema(){
+  overlayOpen = false;
+  overlay.classList.remove("show");
+}
+
+/* keyboard */
+document.addEventListener("keydown",e=>{
+  if(overlayOpen){ if(e.key==="Escape") closeFullSchema(); return; }
+  if(view === "intro"){ if(e.key==="Enter"||e.key==="ArrowRight") go(0); return; }
+  if(view === "finale"){ if(e.key==="ArrowLeft") go(STAGE_COUNT-1); return; }
+  const i = view;
+  if(e.key === "ArrowLeft"){ i===0 ? go("intro") : go(i-1); }
+  else if(e.key === "ArrowRight"){
+    if(STAGES[i].type === "gate") return; // must choose
+    i === STAGE_COUNT-1 ? go("finale") : go(i+1);
+  }
+});
+
+render();
+</script>
+</body>
+</html>
